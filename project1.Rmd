@@ -1,6 +1,7 @@
 ---
 title: "Project1"
 author: "Kumar Aiyer"
+contributor: "Aaron Arpi"
 date: "01/15/2016"
 output: html_document
 ---
@@ -402,7 +403,7 @@ gbm1 <-  #fit the model
        data=train_data,    # dataset
        var.monotone=c(0,0,0),       #  0: no monotone restrictions
        distribution="gaussian",     # see the help for other choices
-       n.trees=2000,                # number of trees
+       n.trees=2500,                # number of trees
        shrinkage=0.01,              # shrinkage or learning rate,
        # 0.001 to 0.1 usually work
        interaction.depth=3,         
@@ -438,6 +439,9 @@ and the model-fitting process.
   cat("Optimal number of boosting iterations as determined by cross-validation :", best.iter)
 ```
  
+ The cross-validation shows that we are unlikely to substantially improve our results on the test set by using  
+ any more than about 2000 boosting iterations. So I will use "best.iter" iterations when I apply the model to the
+ test data. 
 
 ```{r}
 # # check performance using a 50% heldout test set
@@ -473,8 +477,12 @@ cat("R-squared for training set", 1-var(residuals_train)/var(train_data$kwh))
 cat("R-squared for test set", 1-var(residuals_test)/var(test_data$kwh))
 ```
  
-R-squared is substantially improved as compared to the linear regression model.  The small decrease 
-in R-squared in going from training data to the test data indicates that the model is probably not overfit. 
+R-squared is improved as compared to the linear regression model, but not greatly.  The decrease 
+in R-squared in going from training data to the test data indicates that the model may be slightly overfit.
+It may be worth trying to apply the model on the test set w/ fewer boosting iterations (which I have done but not shown
+here, because the results did not improve).  The model is not so powerful for several possible reasons. For one, the data is probably somewhat noisy.  But more importantly, the features in the model are not so informative. For example, month is a rough approximation for the time of year.  The weather in the beginning of March may be very different from the weather 
+in the end of March.  The model may work much better if 1-2 more features were added. I suspect that by adding a day of week (1-7) feature, the model would perform much better.  I have tested this out as you can see at the end of the project. The result is a much more impressive model.  Below is further analysis of the 3-feature model...
+
 
 
 Now, I compute the standard error of the GBM model on the test data:
@@ -485,7 +493,6 @@ cat("The standard error on the test set was :", standard_error)
 ```
  
  
-
 
 It is good to observe a histogram of the test set residuals
 ```{r, out.width = '\\maxwidth'}
