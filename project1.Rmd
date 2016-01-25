@@ -12,7 +12,12 @@ When you click the **Knit** button a document will be generated that includes bo
 Load and transform the data for the analysis
 
 ```{r}
+#{r setup, include=FALSE}
+#opts_chunk$set(dev = 'pdf')
+
 options(width=120)
+#opts_chunk$set(dev = 'pdf')
+
 #
 # write a function geteloaddatadf() - you will assign the return value to eloaddf
 # in the function do the following
@@ -22,13 +27,13 @@ options(width=120)
 #
 # some notes on the data
 # the file has 15 min interval data from 1/1/2014 to 12/30/2015
-# when you import the data, the first column of your dataset should be dates in POSIXct format
+# when you import the data, the first column of your data set should be dates in POSIXct format
 # HINT: use the strptime and as.POSIX.ct functions to form the eloaddf$dates
 #
 # write a function getweatherdf() - you will assign the return value to weatherdf
 # 2. Next load the weather data from NOAA into a data frame weatherdf. The data is in 1874606932872dat.txt
 # This is 1 hour interval data for a specific weather station close to
-# the location of the site from which electric load data was obtained
+# the location of the site from which electric load was obtained
 #
 # you need to use fixed width parsing to read the data into a data frame.
 # add a column called dates to the dataframe similar to #1 above
@@ -41,39 +46,237 @@ options(width=120)
 # distchrgkw, mttkwh, tbckwh,nugckwh, sbckwh, rggieekwh, deliverykwh, 
 # totdeliverychrg, supplychrg, totalchrg
 #
+install_packages <- function(){
+   
+  if (!require("gplots")) {
+     install.packages("gplots", dependencies = TRUE)
+     library(gplots)
+   }
+   if (!require("RColorBrewer")) {
+     install.packages("RColorBrewer", dependencies = TRUE)
+     library(RColorBrewer)
+   }
+
+   if (!require("readxl")) {
+       install.packages("readxl", dependencies = TRUE)
+       library(readxl)
+   }
+   if (!require("openxlsx")) {
+       install.packages("openxlsx", dependencies = TRUE)
+       library(openxlsx)
+   }
+   if (!require("plyr")) {
+       install.packages("plyr", dependencies = TRUE)
+       library(plyr)  
+   }  
+   if (!require("gridExtra")) {
+     install.packages("gridExtra", dependencies = TRUE)
+     library(gridExtra)  
+   }    
+   if (!require("lubridate")) {
+     install.packages("lubridate", dependencies = TRUE)
+     library(lubridate)  
+   }    
+   if (!require("ggplot2")) {
+     install.packages("ggplot2", dependencies = TRUE)
+     library(ggplot2)  
+   }   
+   if (!require("caret")) {
+     install.packages("caret", dependencies = TRUE)
+     library(caret)  
+   }   
+   if (!require("gbm")) {
+     install.packages("gbm", dependencies = TRUE)
+     library(gbm)  
+   }   
+   if (!require("grid")) {
+     install.packages("grid", dependencies = TRUE)
+     library(grid)  
+   }   
+   if (!require("gridExtra")) {
+     install.packages("gridExtra", dependencies = TRUE)
+     library(gridExtra)  
+   }  
+   if (!require("cowplot")) {
+     install.packages("cowplot", dependencies = TRUE)
+     library(cowplot)  
+   }  
+
+}
+
+geteloaddatadf <- function() {
+   
+   eloaddf <- read.xlsx("elecloaddata.xlsx", sheet = 1, colNames = TRUE)
+   eloaddf$TIME <- sprintf("%04d", eloaddf$TIME)
+   eloaddf$DATE <- sprintf("%06d", eloaddf$DATE)
+   eloaddf$DATE <- as.POSIXct(paste(eloaddf$DATE, eloaddf$TIME), format="%m%d%y %H%M")
+   #below I manually enter POSIX date conversions for 2AM daylight savings transition times that I found were showing up 
+   # as NAs in the data. R converted these 2 times as NA because of the daylight savings ambiguity.
+   eloaddf$DATE[6440] <- as.POSIXct("2014-03-09 03:00:00")
+   eloaddf$DATE[41384] <- as.POSIXct("2015-03-08 03:00:00")
+   return(eloaddf)
+}
+getweatherdf <- function(){
+   weatherdf <- read.fwf(file="1874606932872dat.txt", 
+     widths=(c(7, 6, 8,5, 4, 4, 4,4,4,2,2,2,5,3,3,3,3,3,3,3,3,2,5,5,7,6,7,4,4,6,6,6,6,3)))
+     colnames(weatherdf) <- c("USAF","WBAN", "DATE","TIME", "DIR", "SPD", "GUS", "CLG", "SKC", "L", "M", "H", "VSB", "MW",      "MW", "MW", "MW", "AW", "AW", "AW", "AW", "W", "TEMP", "DEWP","SLP",  "ALT", "STP", "MAX", "MIN", "PCP01", "PCP06", 
+     "PCP24", "PCP25", "PCP26")
+   weatherdf <- weatherdf[-c(1), ]
+   weatherdf$TIME <- sprintf("%04s", weatherdf$TIME)
+   weatherdf$DATE = as.POSIXct(as.character(paste(weatherdf$DATE, weatherdf$TIME)), format='%Y%m%d %H%M')
+   weatherdf$TIME <- NULL
+   weatherdf$TEMP <-  as.numeric(as.character(weatherdf$TEMP))
+   return(weatherdf)
+}
+
+
+install_packages()
 
 ```
 
-We now have 3 data sets
 
-1. Electric load data in 15 min interval
-2. Weather data in 60 min interval
-3. Bill data monthly
+```{r echo=FALSE, comment = ""}
+```
 
-Lets do some simple analysis
 
-Display the monthly load profile
+
+Now, load the electric load datat (eloaddf) and print out the first 20 rows to make sure it loads correctly
 
 ```{r}
-# display a summary of the electric load data eloaddf$kwh by summarizing it by year, month and total kwh over each month
+options(width=120)
+eloaddf <- geteloaddatadf()  # get the electric load data
+print(head(eloaddf, 20))  # plot the first 20 rows of load data 
+print("Electric load data last rows:\n")
+print(tail(eloaddf, 20))
+```
+
+Also, print out the last 20 rows of load data to make sure it is also correct
+
+```{r}
+options(width=120)
+
+print(tail(eloaddf, 20)) #printing the last 20 rows
+```
+
+
+
+Now, load the weather data and print out the first 10 rows to make sure it loads correctly
+
+```{r}
+options(width=120)
+weatherdf <- getweatherdf() # load the weatherdata
+print(head(weatherdf,10)) # print the first 10 rows of the weather data
+
+
+```
+
+
+... and print out the last 10 rows of the weather data to check the end of the load
+
+```{r}
+options(width=120)
+print(tail(weatherdf,10)) ## print the last 10 rows of weather data
+
+```
+
+
+OK, everything seems correct so far.
+
+...now I will load the billing data. I will print it as part of a later step.
+
+```{r}
+billdf <- read_excel("billdata.xlsx", sheet=1) 
+colnames(billdf) <- c("billdate", "billstartdt", "billenddt", "kwh", "mindemandkw", "actualdemandkw", "custcharge",
+                      "distchrgkw", "mttkwh", "tbckwh","nugckwh", "sbckwh", "rggieekwh", "deliverykwh",
+                      "totdeliverychrg", "supplychrg", "totalchrg")
+billdf <- head(billdf, -1)
+```
+
+
+```{r}
+# We now have 3 data sets
+
+#1. Electric load data in 15 min interval
+#2. Weather data in 60 min interval
+#3. Bill data monthly
+
+#Lets do some simple analysis
+
+#Display the monthly load profile
+
+print(billdf)
+
+#display a summary of the electric load data eloaddf$kwh by summarizing it by year, month and total kwh over each month
 # your answer should display 24 rows without the header.
+
+eloaddf$MONTHYR <- strftime(eloaddf$DATE, format="%Y/%m")
+monthsum <- ddply(eloaddf, .(MONTHYR), summarize, monthlyKWH=sum(kWh))
+print(monthsum)  
 ```
 
 Now let us do some plotting of the load data
 
 ```{r}
 # form a dataframe called eloadhrdf with two columns dates, kwh
-# this dataframe sums the 15min kwh in the eloaddf to hourly data
-# next create a plot frame with two panels side by side
-# On the left panel show a heat map of kwh data for 2014 with x-axis as months and y-axis as hour of the day (1 to 24). use subsetting of the data frame rather than copying the data into yet another data frame
-# On the right panel show a heat map of kwh data for 2015 with x-axis as months and y-axis as hour of the day (1 to 24). use subsetting of the data frame rather than copying the data into yet another data frame
+# this data frame sums the 15min kwh in the eloaddf to hourly data
+
+eloadhrdf <- data.frame(kwh = eloaddf$kWh, dates = round(as.POSIXct(eloaddf$DATE, format="%Y%m%d %H:M"),"hours"))
+eloadhrdf <- ddply(eloadhrdf, .(dates), summarize, kwh = sum(kwh))
+print(head(eloadhrdf,30)) 
 ```
-REPLACE THIS SECTION WITH YOUR COMMENTS ON THE DATA
+
+In the following section, I have plotted heatmaps for the 2014 and 2015 electrical load data. Please note, although the instructions were to provide the 2 plots as a row, I encountered problems when plotting in this way. Apparently, the default horizontal width of the plotting area was excessively narrow, causing the x-axis labeling to be scrunched.  I spent a lot of time trying to fix this without achieving a solution, other than to plot vertically.   
+
+```{r, out.width = '\\maxwidth'}
+
+# # next create a plot frame with two panels side by side
+# On the left panel show a heat map of kwh data for 2014 with x-axis as months and y-axis as hour of the day (1 to 24). #use subsetting of the data frame rather than copying the data into yet another data frame
+# On the right panel show a heat map of kwh data for 2015 with x-axis as months and y-axis as hour of the day (1 to 24). use subsetting of the data frame rather than copying the data into yet another data frame
+
+eloadhrdf14 <- subset(eloadhrdf, year(eloadhrdf$date) == 2014)
+eloadhrdf14$hour <- hour(eloadhrdf14$date)
+eloadhrdf14$date <- as.Date(eloadhrdf14$date, format = "%y/%m/%d")
+eloadhrdf15 <- subset(eloadhrdf, year(eloadhrdf$date) == 2015)
+eloadhrdf15$hour <- hour(eloadhrdf15$date)
+eloadhrdf15$date <- as.Date(eloadhrdf15$date, format = "%y/%m/%d")
+
+heat14 <- ggplot(eloadhrdf14, aes(x=date, y=hour), main="2014 Heatmap") + geom_tile(aes(fill=kwh)) + theme(axis.text.x = element_text(size=8))
+
+heat15 <- ggplot(eloadhrdf15, aes(x=date, y=hour), main="2015 Heatmap") + geom_tile(aes(fill=kwh)) + theme(axis.text.x = element_text(size=8))
+
+grid.arrange(heat14,heat15, ncol=2)
+
+
+```
+
+Comments on the data:
+
+Based on the amount of power being used and the patterns in the data, it appears that the consumer involved is an office building, group of office buildings, school, or some other large entity - as opposed to a household or small business.  For example, by studying both heatmaps, it is easy to see thin black vertical lines at evenly spaced intervals. These lines appear consistently accross each plot.  It seems likely that these lines are associated with weekends, when most buildings use much less power at all times of the day.  Similarly, a dark area on both heatmaps reveals that on all days of the year, the power usage is relatively low between the hours of 2:30AM and 7:00AM. At 7:00AM begins a roughly 30-60 minute period of more moderate energy use, followed by relatively high energy use starting at 9:00AM and lasting until 10:00PM, when energy use tends to taper off before bottoming out around 2:30.  This is very consistent with energy usage profile of a large office building, in which heating or cooling of the building is best done gradually, beginning 1-2 hours before most people show up for work.  
+
+In the 2014 heatmap, it is possible to see a dark vertical band at the far right of the plot, in a position corresponding to the month of December, 2014.  The darkness indicates consistent low power usage, and this would seem to suggest that the entity being studied is a school, since most schools are closed in December.  Similarly, there is another dark vertical band visible in the 2014 plot.  This band is narrower and corresponds to approximately March 20-25, 2014.  If indeed the entity was a school, the short period of consistently low power usage may have been a result of the school being closed for a spring holiday week, which tend to be in late March in most school districts.  However, the March and December periods of low energy use that are visible in 2014 are much less recognizable, if not entirely nonexistent, in the 2015 data and heatmap.    
+
+There are quite a few other conclusions that can be made from the data.  For example, it seems likely that the entity uses more power for cooling than heating, since the heatmap shows that summer months are associated with higher energy use than winter months, in general. Additionally, the weather data indicates that the geographic location being studied does not have a severe climate, but is somewhere that probably receives snowfall.  For example, the following is a summary of the 2014 and 2015 temeperature data. 
+   
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+  -7.00   40.00   57.00   54.39   70.00   94.00    1023 
+
+This range of temperatures makes me expect that the weather data was registered in a place like Denver, Salt Lake City or Reno.
+
+
+======================================================================================================================
+
 
 We plot the weather data using boxplot to explore the variation in temperature graphically
 
-```{r}
+```{r, out.width = '\\maxwidth'}
+
 # plot the weather data. Use boxplots in ggplot2 with month on the x-axis and temperature in y-axis
+ dt <- ggplot(weatherdf) + geom_boxplot(aes(y=TEMP,x=reorder(format(weatherdf$DATE,'%m/%y'),weatherdf$DATE),
+                                            fill=format(weatherdf$DATE,'%Y'))) +
+   xlab('Date') + guides(fill=guide_legend(title="Year")) + theme(axis.text.x = element_text(size=7, angle = 90))
+ print(dt)
+
+
 ```
 
 We are now ready to build a simple predictive model.
@@ -81,42 +284,383 @@ We are now ready to build a simple predictive model.
 ```{r}
 #create a dataframe with hourly interval data inside your function by 
 # combining selective columns from eloadhrdf and weatherdf
-# your dataframe should be called modeldatadf and the columns should be dates, year, month, hrofday, temp, kwh
-#
-#
-# write a simple function called predmodel. the model object should be the return parameter
-# pass in the appropriate data frames.
-# 
-# you should fit a GLM with the following specification kwh ~ month + hrofday + temp
-# your model should only use 2014 data for your prediction model
-#
-# use the summary function and display the results of the function
+# your dataframe should be called  and the columns should be dates, year, month, hrofday, temp, kwh
+
+# First, I have to manipulate the weatherdf data format to do an inner joing (merge) with eloadhrdf dataframe 
+weatherdf$roundDATE <- as.POSIXct(round(weatherdf$DATE, "hours"),format='%Y%m%d %H:%M')
+weatherdf_filtered <- subset(weatherdf, select = c("DATE", "TEMP", "roundDATE"))
+# Now, I merge eloadhrdf and weatherdf using an inner join
+modeldatadf <- merge(eloadhrdf,weatherdf_filtered,by.x="dates", by.y="roundDATE")
+modeldatadf <- cbind(modeldatadf, year = year(modeldatadf$dates), month = month(modeldatadf$dates), hrofday =                    hour(modeldatadf$dates)) #  incorporating columns specifically for hour of day and month 
+modeldatadf$DATE <- NULL # the inner join left 2 date columns, so this eliminates the redundant column 
+modeldatadf <- modeldatadf[complete.cases(modeldatadf$TEMP),]  #deletes rows having missing temperature data
 ```
 
-REPLACE THIS SECTION WITH YOUR COMMENTS OF YOUR "TOY" PREDICTIVE MODEL. FOCUS ON WHICH COVARIATES 
-ARE STATISTICALLY SIGNIFICANT
+This is the first and last 20 rows of modeldatadf
+```{r}
+print(head(modeldatadf,20))
+print(tail(modeldatadf, 20))
+```
+
+... OK that data looks good
+
+
+```{r, out.width = '\\maxwidth'}
+# write a simple function called predmodel. the model object should be the return parameter
+# pass in the appropriate data frames.
+# you should fit a GLM with the following specification kwh ~ month + hrofday + temp
+# your model should only use 2014 data for your prediction model use the summary function and display the results of the 
+# function
+predmodel <- function() {
+  regression <- lm(kwh ~ month + hrofday + TEMP, subset(modeldatadf, year == 2014))
+  return(regression)
+}
+
+regression <- predmodel()
+print(summary(regression))
+residuals <- resid(regression)
+hist(residuals,50)
+```
+
+Inference about the regression model.  
+
+In general, this model is very simple and conservative but lacks explanatory power.  As shown in the summary above, the model has R^2=.39, meaning that 39% of the variance in the kWh data can be explained by the model.
+
+As another way of looking at the lack of explanatory power of the model, you could simply replace the model by the simplest possible model in which the mean 2014 consumption as used as the estimate of hourly consumption (kwh) in all cases.  As shown below, the mean  error (absolute value) of this model would be 32.6 kwh.  By applying the regression model instead of the simpler model, the mean error (L1) magnitude is reduced by only 7.4 kWh. This is not much of an improvement.   
+```{r}
+
+simple_model_error = mean(abs(modeldatadf$kwh-mean(modeldatadf$kwh)))
+cat("This is average error magnitude of the simple model : ", simple_model_error)
+regression_model_error = mean(abs(residuals))
+cat("This is the average error magnitude of the 3-variable regression model", regression_model_error)
+```
+
+
+The weaknesses of the model can be grasped intuitively.  As a linear regression model, the model is premised on certain assumptions about the data that clearly do not hold in the case of this data.   For example, linear regression assumes that the target variable (kwh in this case) is a linear function of each covariate. But electricity consumption is clearly not a linear function of hour of the day.  Rather, on just about any day in the data set, regardless of month or temperature changes, electrical consumption is minimal and roughly unchanged throughout the middle of the night and early morning hours.  It then spikes quickly around 9-10AM and drops dramatically late at night.  Clearly, this pattern is affected by temperature, but largely driven by the waking and sleeping patterns of people, and building occupancy patterns, which are related most strongly to time of day. So, it stands to reason that the linear relationship between electricity use and hour of day is not too strong.   The same is true with regards to the other 2 covariates. 
+
+The lack of linear relationship between electricity usage and the temperature covariate (as one example) can be seen by taking a slice of the data for which the month and hour of day values are constant, and then measuring the correlation between temperature and kwh for the slice.  This is a measure of covariance over a small subsample (only 30 rows) of the data, but the results are illustrative of the lack of linear relationship.  Looking at the 12:00 nooon observations during the month of September, the covariance between kwh and temperature is:
+
+```{r}
+const_m_h <- modeldatadf[with(modeldatadf, year == 2014 & month == 9 & hrofday == 12), ]
+print(cor(subset(const_m_h, select = c("TEMP", "kwh"))))
+```
+In other words, almost no linear relationship within this subsample.
+
+Looking at another subsample now - for June at 6PM:
+```{r}
+const_m_h <- modeldatadf[with(modeldatadf, year == 2014 & month == 6 & hrofday == 18), ]
+print(cor(subset(const_m_h, select = c("TEMP", "kwh"))))
+```
+
+... and for March at 5AM:
+```{r}
+const_m_h <- modeldatadf[with(modeldatadf, year == 2014 & month == 3 & hrofday == 5), ]
+print(cor(subset(const_m_h, select = c("TEMP", "kwh"))))
+```
+
+So, by rough inspection it seems that the strength of the linear relationship between temperature and energy usage is minimal.
+
+Now, observing the covariance matrix across the entire 2014 data set, temperature is the covariate that is most correlated with kWh.  
+```{r}
+print(cor(subset(modeldatadf[with(modeldatadf, year == 2014), ], select = c("TEMP", "month", "hrofday", "kwh"))))
+```
+
+
+Thus, I would expect temperature to have more explanatory power than any of the other covariates.  Indeed, as can be seen in the regression summary below, the t-statistic for temperature is higher than for the other covariates.  Thus, of the three covariates, temperature has the highest likelihood of being non-zero in the true distribution.   
+
+In addition to the assumption of a linear relationship between predictors and the target variable, linear regression assumes that noise in the data is Gaussian.  The histogram of the residuals (plotted above) shows that this is not the case.  As a result, statistical inference about the significance of the model covariates will be biased.   
+
+It is possible to test the hypothesis that this model is actually no better than a model which simply uses the sample average as the estimator of electric usage in all cases.  In other words, this is a test of a null hypothesis that none of the covariates have any explanatory power in the model.  This is done using the F-test.  The F-test results for the regression model are shown in the following underlined portion of the regression summary in R:
+
+```{r}
+summary(regression)
+```
+
+The very low p-value associated with the F-test indicates that we can reject this null hypothesis and accept the alternative hypothesis that at least one of the covariates is useful in predicting kWh. We should understand, however, that the F-test is biased as a result of the residuals not being distributed as Gaussian.  There may be further bias in this test if the residuals are correlated with each other and/or heteroskedastic, but I will not test for these deficiencies.
+
+We can also test whether any one of the individual predictors could be dropped from the model without detriment to the model’s predictive value.  In this test, for each predictor, the null hypothesis is that dropping the predictor from the model while keeping the other two predictors would not reduce the predictive value .  However, each of the 3 predictors has a p-value well below .01 in the summary table above.  Accordingly, it is appropriate to fail to accept the null hypothesis in the case of each predictor.  Thus, I expect that the model fitted with 3 covariates would predict better than any other first order linear regression having only 2 of the 3 predictors. 
+
 
 Now show you skills in Machine Learning!
 
 ```{r}
-#
+
 # use the dataframe modeldatadf
 # split it into training and testing data sets based on 2014 data for training and 2015 data for testing
-# Use the GBM algorithm in the caret package in R to train and validate the model.
-# You have free reign to display and explain your results graphically
-#
-#
+# Use the GBM algorithm in the caret package in R to train and validate the model.You have free reign to display and  
+# explain your results graphically
+
+modeldatadf <- modeldatadf[c(2,3,4,5,6,1)]
+ 
+test_data <- subset(modeldatadf, year == 2015) # divide data into training and test subsets
+
+train_data <- subset(modeldatadf, year == 2014) 
+train_data <- train_data[sample(nrow(train_data)),]  #shuffle/rows of the data for randomization on cross-validation
+
+gbm1 <-  #fit the model
+   gbm(kwh~month+TEMP+hrofday,         # formula
+       data=train_data,    # dataset
+       var.monotone=c(0,0,0),       #  0: no monotone restrictions
+       distribution="gaussian",     # see the help for other choices
+       n.trees=2000,                # number of trees
+       shrinkage=0.01,              # shrinkage or learning rate,
+       # 0.001 to 0.1 usually work
+       interaction.depth=3,         
+       bag.fraction = 0.5,          # subsampling fraction, 0.5 is probably best
+       train.fraction = 0.5,        # fraction of data for training,
+       # first train.fraction*N used for training
+       n.minobsinnode = 10,         # minimum total weight needed in each node
+       cv.folds = 5,                # do 5-fold cross-validation
+       keep.data=TRUE,              
+       verbose=FALSE,               
+       n.cores=1)                   
+ 
 ```
-Lets now compare the predicted model for 2015 with the bill data kwh!
+ 
+ 
+The following is a plot showing how prediction error on an out of bag subsample of the training set
+changes with increasing number of boosting iterations 
+ 
+```{r}
+  # check performance using an out-of-bag estimator
+  # OOB underestimates the optimal number of iterations
+  best.iter_oob <- gbm.perf(gbm1,method="OOB")
+  cat("Optimal number of boosting iterations as determined by the out of bag method :", best.iter_oob)
+```
+
+The following is a plot showing how prediction error on the test data can be expected to change with increasing 
+numbers of boosting iterations.  This expected change is determined by using cross-validation within the training set
+and the model-fitting process. 
 
 ```{r}
-#
+# # check performance using 5-fold cross-validation
+  best.iter <- gbm.perf(gbm1,method="cv")
+  cat("Optimal number of boosting iterations as determined by cross-validation :", best.iter)
+```
+ 
+
+```{r}
+# # check performance using a 50% heldout test set
+  best.iter_holdout <- gbm.perf(gbm1,method="test")
+  cat("Best number of iterations as determined by model fitting w/ a holdout set :", best.iter_holdout)
+```
+ 
+The following shows the relative amount of training data variance explained by the 3 covariates. 
+
+```{r}
+# plot the performance # plot variable influence
+summary(gbm1,n.trees=best.iter) # based on the best number of trees estimated using cross-validation
+```
+ 
+Using the model to predict on both the training data and test data...
+ 
+```{r}
+# # predict on the new data using "best" number of trees
+ f.predict_train <- predict(gbm1, train_data, best.iter)
+ f.predict_test <- predict(gbm1,test_data, best.iter)
+```
+
+
+
+Computing the R-squared on the training set fit, and on the test set...
+
+
+```{r}
+# R-squared for training data fit and test data fit
+residuals_train <- train_data$kwh-f.predict_train 
+residuals_test <- test_data$kwh-f.predict_test
+cat("R-squared for training set", 1-var(residuals_train)/var(train_data$kwh))
+cat("R-squared for test set", 1-var(residuals_test)/var(test_data$kwh))
+```
+ 
+R-squared is substantially improved as compared to the linear regression model.  The small decrease 
+in R-squared in going from training data to the test data indicates that the model is probably not overfit. 
+
+
+Now, I compute the standard error of the GBM model on the test data:
+  
+```{r}
+standard_error <- sqrt(var(residuals_test)/length(residuals_test))
+cat("The standard error on the test set was :", standard_error)
+```
+ 
+ 
+
+
+# It is good to observe a histogram of the test set residuals
+```{r, out.width = '\\maxwidth'}
+hist(residuals, main="Histogram of Test Data Residuals for GBM Model", xlab="Magnitude of Error", ylab="Number of Occurrences" )
+```
+ 
+
+```{r, out.width = '\\maxwidth'}
+# create marginal plots
+# plot variable X1,X2,X3 after "best" iterations
+par(mfrow=c(1,3))
+plot(gbm1,1,best.iter, main = "The Model with Respect\n to Month")
+plot(gbm1,2,best.iter, main = "The Model with Respect\n to Temperature")
+plot(gbm1,3,best.iter, main = "The Model with Respect\n to Hour of Day")
+
+par(mfrow=c(1,3))   
+#     
+# #  # contour plot of variables 1 and 2 after "best" number of boosting iterations
+plot(gbm1,1:2,best.iter, main = "Model With Respect to\n Month & Temperature")
+# #  # lattice plot of variables 2 and 3
+plot(gbm1,2:3,best.iter, main = "Model With Respect to\n Temperature & Hr of Day")
+#  # # lattice plot of variables 1 and 3
+plot(gbm1, c(1,3), best.iter, main = "Model with Respect to Month & Hr of Day")
+plot(gbm1,1:3,best.iter, main = "Model With Respect to\n Month, Temp & Hr of Day")
+ 
+
+```
+
+Lets now compare the predicted model for 2015 with the bill data kwh!
+
+*****NOTE********
+There is clearly an error in the monthly electric billing data that was provided as part of this project.  The 15 minute interval electric load data file shows electric consumption that is on the order of several hundred thousand kWh per month (approximately 4 million kWh for year 2015).  Howeveer, the .xlsx file that shows the monthly bill indicates monthly consumption on the order of only 30,000-60,000 kWh per month.  It appears that one of these files is for a different building or entity than the other file, or that an error was made somehow in how this data was gathered. In any event, in the section below I have provided the code for comparing the predicted monthly usage for 2015, versus the actual monthly usage indicated on the bill.  the two amounts (predicted vs. actaul) consistently differ by a factor of approximately 6.      
+
+```{r}
+
 # run your machine learning model and create a data frame of dates, kwh for 1hr interval data for 2015. note you
 # may need to include the last few days of 2014 in your dataset due to the billing dates in January (see billdata.xlsx)
-# call your data frame pred2015df.
-# now for each of the 12 rows (billing periods) in the billsdf, sum the kwh for the date range in each of the rows from pred2015df for the corresponding start and end of billing in billsdf 
-# create a resultsdf which has billdate, predkwh (from pred2015df), actualkwh (from billsdf)
-# display the results
+# call your data frame pred2015dfd.
+
+# # now for each of the 12 rows in the billsdf, sum the kwh for the date range in each of the rows from pred2015df 
+# # create a resultsdf which has billdate, predkwh (from pred2015df), actualkwh (from billsdf)
+# # display the results
+
+pred2015df <- data.frame(dates=test_data$dates,
+                 prediction=f.predict_test)
+pred2014df <- data.frame(dates=train_data$dates,
+                 prediction=f.predict_train)
+pred2015df <- rbind(pred2015df, pred2014df)
+pred2015df <- pred2015df[order(pred2015df$dates),]
+print(head(pred2015df))
+
+resultsdf <- billdf[, c("billdate", "kwh")]
+resultsdf$prediction = 0
+
+
+for (billrow in 1:nrow(resultsdf)) {
+      billperioddf <- pred2015df[with(pred2015df, dates >= billdf$billstartdt[billrow] & dates <=                                      billdf$billenddt[billrow]), ]
+      resultsdf$prediction[billrow] <- sum(billperioddf$prediction)
+}
+print(resultsdf)
+
+```
+  
+  
+Out of curiosity, it seeems that the GBM model that I tested above could be substantially improved if I added one 
+additional feature.  In the following experiment, I have trained and tested a GBM on the same data, but have now added a 
+fourth feature - day of the week (1-7) to the model.  
+
+  
+```{r}
+# modeldatadf$dayofyear <-  yday(modeldatadf$dates) 
+modeldatadf$weekday <-  wday(modeldatadf$dates)
+test_data <- subset(modeldatadf, year == 2015) # divide data into training and test subsets
+train_data <- subset(modeldatadf, year == 2014) 
+train_data <- train_data[sample(nrow(train_data)),]  #shuffle/rows of the data for randomization on cross-validation
+
+
+
+ gbm1 <-  #fit the model
+   gbm(kwh~month+TEMP+hrofday+weekday,         # formula
+       data=train_data,    # dataset
+       var.monotone=c(0,0,0,0),       #  0: no monotone restrictions
+       distribution="gaussian",     # see the help for other choices
+       n.trees=2000,                # number of trees
+       shrinkage=0.01,              # shrinkage or learning rate,
+       interaction.depth=3,         
+       bag.fraction = 0.5,          # subsampling fraction, 0.5 is probably best
+       train.fraction = 0.5,        # fraction of data for training,
+       # first train.fraction*N used for training
+       n.minobsinnode = 10,         # minimum total weight needed in each node
+       cv.folds = 3,                # do 5-fold cross-validation
+       keep.data=TRUE,              
+       verbose=FALSE,               
+       n.cores=1)                   
+ 
+```
+
+ 
+The following is a plot showing how the fit on the training data and validation data changes
+with increased numbers of boosting iterations when cross-validation is used to prevent over-fitting.
+
+```{r}
+# check performance using 5-fold cross-validation
+ best.iter <- gbm.perf(gbm1,method="cv")
+ print(best.iter)
+ 
+```
+
+ 
+ 
+ The following is a plot of the relative information provided by the variables in the model.
+ 
+```{r}
+# plot the performance # plot variable influence
+summary(gbm1,n.trees=best.iter) # based on the estimated best number of trees
+```
+
+
+
+Now, I make both in sample (2014) predictions and out of sample predictions. 
+I will use the number of iterations that the cross validation method determined to be best.
+
+```{r}
+# predict on the new data using "best" number of trees
+f.predict_train <- predict(gbm1, train_data, best.iter)
+f.predict_test <- predict(gbm1,test_data, best.iter)
+```
+
+
+Computing the R-squared on the training set fit, and on the test set...
+
+
+```{r}
+# R-squared for training data fit and test data fit
+residuals_train <- train_data$kwh-f.predict_train 
+residuals_test <- test_data$kwh-f.predict_test
+cat("R-squared for training set", 1-var(residuals_train)/var(train_data$kwh))
+cat("R-squared for test set", 1-var(residuals_test)/var(test_data$kwh))
+```
+
+
+
+R-squared of the 4-feature GBM model is an improvement over the linear regression model and the 3-feature GBM model tested previously.  The model may be slightly overfit, meaning that perhaps it could be improved if fewer iterations of boosting
+were used. 
+
+
+Now, I compute the standard error of the GBM model on the test data:
+```{r}
+standard_error <- sqrt(var(residuals_test)/length(residuals_train))
+
+cat("The standard error on the test set was :", standard_error)
+```
+
+
+
+
+It is good to observe a histogram of the test set residuals.
+
+
+```{r, out.width = '\\maxwidth'}
+hist(residuals, main="Histogram of Test Data Residuals for \n 4-Feature GBM Model", xlab="Magnitude of Error", ylab="Number of Occurrences" )
+```
+
+
+
+```{r, out.width = '\\maxwidth'}
+# create marginal plots
+# plot variable X1,X2,X3 after "best" iterations
+par(mfrow=c(2,2))
+plot(gbm1,1,best.iter, main = "The Model with Respect\n to Month")
+plot(gbm1,2,best.iter, main = "The Model with Respect\n to Temperature")
+plot(gbm1,3,best.iter, main = "The Model with Respect\n to Hour of Day")
+plot(gbm1,4,best.iter, main = "The Model with Respect\n to Day of Week")
+par(mfrow=c(1,1))   
+#     
 ```
 
 This completes this little exploration of energy load data. Thank You!
