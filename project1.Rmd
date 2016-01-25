@@ -487,7 +487,7 @@ cat("The standard error on the test set was :", standard_error)
  
 
 
-# It is good to observe a histogram of the test set residuals
+It is good to observe a histogram of the test set residuals
 ```{r, out.width = '\\maxwidth'}
 hist(residuals, main="Histogram of Test Data Residuals for GBM Model", xlab="Magnitude of Error", ylab="Number of Occurrences" )
 ```
